@@ -1,0 +1,83 @@
+services:
+  # RabbitMQ para comunicación asíncrona (Event-driven)
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # Bases de Datos (Aislamiento: una instancia de Postgres por microservicio)
+  db_users:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=users_db
+      - POSTGRES_USER=julian
+      - POSTGRES_PASSWORD=securepass
+    volumes:
+      - postgres_data_users:/var/lib/postgresql/data
+
+  db_wallet:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=wallet_db
+      - POSTGRES_USER=julian
+      - POSTGRES_PASSWORD=securepass
+    volumes:
+      - postgres_data_wallet:/var/lib/postgresql/data
+
+  # Microservicio de Identidad (ms_users)
+  ms_users:
+    build: ./ms_users
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./ms_users:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgres://julian:securepass@db_users:5432/users_db
+    depends_on:
+      - db_users
+
+  # Microservicio de Transacciones (ms_wallet)
+  ms_wallet:
+    build: ./ms_wallet
+    command: python manage.py runserver 0.0.0.0:8001
+    volumes:
+      - ./ms_wallet:/app
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgres://julian:securepass@db_wallet:5432/wallet_db
+    depends_on:
+      - db_wallet
+
+  # Microservicio de Notificaciones (ms_notifications)
+  ms_notifications:
+    build: ./ms_notifications
+    command: python worker.py
+    volumes:
+      - ./ms_notifications:/app
+    depends_on:
+      - rabbitmq
+
+  ms_wallet_consumer:
+    build: ./ms_wallet
+    command: python consumer.py
+    volumes:
+      - ./ms_wallet:/app
+    depends_on:
+      - db_wallet
+      - rabbitmq
+
+  # ms_notifications_consumer:
+  #   build: ./ms_notifications
+  #   command: python consumer.py
+  #   volumes:
+  #     - ./ms_notifications:/app
+  #   depends_on:
+  #     - rabbitmq
+
+# Volúmenes persistentes para no perder datos al apagar los contenedores
+volumes:
+  postgres_data_users:
+  postgres_data_wallet:

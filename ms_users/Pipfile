@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+django = "*"
+psycopg2-binary = "*"
+grpcio = "*"
+grpcio-tools = "*"
+django-environ = "*"
+djangorestframework = "*"
+djangorestframework-simplejwt = "*"
+django-allauth = "*"
+dj-rest-auth = "*"
+pika = "*"
+requests = "*"
+cryptography = "*"
+django-cors-headers = "*"
+
+[dev-packages]
+
+[requires]
