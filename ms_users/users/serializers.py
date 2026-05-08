@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
+from .models import Contact
 
 User = get_user_model()
 
@@ -46,3 +47,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = CustomUserSerializer(self.user).data
         
         return data
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    """
+    Serializer para listar los contactos guardados por un usuario.
+    """
+    contact_user = CustomUserSerializer(read_only=True)
+
+    class Meta:
+        model = Contact
+        fields = ('id', 'alias', 'created_at', 'contact_user')
