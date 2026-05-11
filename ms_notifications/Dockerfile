@@ -1,35 +1,21 @@
-# Usamos Python 3.13-slim para estar más cerca de tu entorno de Arch/Fedora
-FROM python:3.13-slim
-
-# Evitar que Python genere archivos .pyc y asegurar logs en tiempo real
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Directorio de trabajo dentro del contenedor
+FROM node:22-alpine
 WORKDIR /app
 
-# Instalar dependencias esenciales del sistema
-# Se incluyen herramientas para compilar extensiones de C y soporte para PostgreSQL
-RUN apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Instalar pnpm (usamos la versión 9 estable para evitar políticas de seguridad agresivas)
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
-# Instalación de pipenv (tu gestor de paquetes preferido)
-RUN pip install --no-cache-dir pipenv
+COPY package.json pnpm-lock.yaml ./
+COPY prisma ./prisma/
 
-# Copiar archivos de dependencias primero para aprovechar la caché de Docker
-COPY Pipfile Pipfile.lock /app/
+# Evitar que pnpm bloquee la instalación por scripts de terceros
+RUN pnpm install --ignore-scripts
 
-# Instalar dependencias directamente en el sistema del contenedor (sin venv interno)
-RUN pipenv install --system --deploy
+COPY . .
 
-# Copiar el resto del código fuente del microservicio
-COPY . /app/
+# Generar cliente de Prisma manualmente (reemplaza el post-install ignorado arriba)
+RUN pnpm prisma generate
 
-# Puerto por defecto para Django (ms_users: 8000, ms_wallet: 8001, etc.)
-EXPOSE 8000
+RUN pnpm run build
 
-# Comando para iniciar el servidor de desarrollo de Django
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+EXPOSE 8002
+CMD ["pnpm", "run", "start:prod"]

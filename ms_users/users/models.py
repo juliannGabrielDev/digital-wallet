@@ -8,7 +8,7 @@ class CustomUser(AbstractUser):
     Usa UUID como llave primaria para evitar colisiones entre bases de datos.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
+
     # El framework ya incluye campos como:
     # username, email, password, is_staff, is_active, etc.
 

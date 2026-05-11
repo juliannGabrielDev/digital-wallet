@@ -1,35 +1,22 @@
-# Usamos Python 3.13-slim para estar más cerca de tu entorno de Arch/Fedora
-FROM python:3.13-slim
-
-# Evitar que Python genere archivos .pyc y asegurar logs en tiempo real
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Directorio de trabajo dentro del contenedor
+# Usamos la imagen oficial de golang más reciente en alpine
+FROM golang:alpine AS builder
 WORKDIR /app
 
-# Instalar dependencias esenciales del sistema
-# Se incluyen herramientas para compilar extensiones de C y soporte para PostgreSQL
-RUN apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Instalación de pipenv (tu gestor de paquetes preferido)
-RUN pip install --no-cache-dir pipenv
+COPY . .
 
-# Copiar archivos de dependencias primero para aprovechar la caché de Docker
-COPY Pipfile Pipfile.lock /app/
+# Compilar de forma completamente estática asegurando una ruta y nombre específicos
+RUN CGO_ENABLED=0 GOOS=linux go build -a -o /app/wallet-api ./cmd/api/main.go
 
-# Instalar dependencias directamente en el sistema del contenedor (sin venv interno)
-RUN pipenv install --system --deploy
+FROM alpine:latest
+# Cambiamos el directorio de trabajo final a /server para evitar colisiones 
+# con el volumen ./ms_wallet:/app montado en el docker-compose.yml
+WORKDIR /server
 
-# Copiar el resto del código fuente del microservicio
-COPY . /app/
+# Copiamos el binario ya compilado desde el builder
+COPY --from=builder /app/wallet-api .
 
-# Puerto por defecto para Django (ms_users: 8000, ms_wallet: 8001, etc.)
-EXPOSE 8000
-
-# Comando para iniciar el servidor de desarrollo de Django
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+EXPOSE 8001 50051
+CMD ["./wallet-api"]

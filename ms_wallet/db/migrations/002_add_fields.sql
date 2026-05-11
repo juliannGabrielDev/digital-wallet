@@ -1,0 +1,10 @@
+-- Alter wallets table
+ALTER TABLE wallets ALTER COLUMN balance TYPE DECIMAL(18, 4);
+ALTER TABLE wallets ADD COLUMN currency VARCHAR(3) NOT NULL DEFAULT 'MXN';
+ALTER TABLE wallets ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE wallets ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+
+-- Alter transactions table
+ALTER TABLE transactions ALTER COLUMN amount TYPE DECIMAL(18, 4);
+ALTER TABLE transactions ADD COLUMN currency VARCHAR(3) NOT NULL DEFAULT 'MXN';
+ALTER TABLE transactions ADD COLUMN description TEXT NOT NULL DEFAULT '';

@@ -1,9 +1,14 @@
+import os
 import pika
 import json
 
 def publish_user_created(user_id, email):
-    # Conexión al contenedor de RabbitMQ definido en docker-compose
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    # Tomamos la URL del docker-compose (o localhost si estás probando por fuera)
+    rabbitmq_url = os.environ.get('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672/')
+
+    # Conexión profesional usando la URL completa
+    parameters = pika.URLParameters(rabbitmq_url)
+    connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
 
     # Declaramos la cola por si no existe
@@ -22,6 +27,6 @@ def publish_user_created(user_id, email):
         body=json.dumps(message),
         properties=pika.BasicProperties(delivery_mode=2) # Mensaje persistente
     )
-    
-    print(f" [x] Evento enviado: Usuario {user_id} creado")
+
+    print(f" [x] Evento enviado a RabbitMQ: Usuario {user_id} creado")
     connection.close()

@@ -1,7 +1,6 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
-env/
-db.sqlite3
+.git
 .env
+node_modules
+dist
+npm-debug.log
+pnpm-debug.log

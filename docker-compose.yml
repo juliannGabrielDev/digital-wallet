@@ -1,83 +1,89 @@
 services:
-  # RabbitMQ para comunicación asíncrona (Event-driven)
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-
-  # Bases de Datos (Aislamiento: una instancia de Postgres por microservicio)
+  # ==========================================
+  # BASES DE DATOS (Persistencia Aislada)
+  # ==========================================
   db_users:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_DB=users_db
-      - POSTGRES_USER=julian
-      - POSTGRES_PASSWORD=securepass
-    volumes:
-      - postgres_data_users:/var/lib/postgresql/data
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: users_db
+    ports:
+      - "5432:5432"
 
   db_wallet:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_DB=wallet_db
-      - POSTGRES_USER=julian
-      - POSTGRES_PASSWORD=securepass
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: wallet_db
+    ports:
+      - "5433:5432"
     volumes:
-      - postgres_data_wallet:/var/lib/postgresql/data
+      # Todo .sql que pongas aquí, Postgres lo ejecutará al inicializarse
+      - ./ms_wallet/db/migrations:/docker-entrypoint-initdb.d
 
-  # Microservicio de Identidad (ms_users)
+  db_notifications:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: notifications_db
+    ports:
+      - "5434:5432"
+
+  # ==========================================
+  # BUS DE MENSAJES (Event-Driven)
+  # ==========================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672" # Panel de control web
+
+  # ==========================================
+  # MICROSERVICIOS (Stack Políglota)
+  # ==========================================
   ms_users:
     build: ./ms_users
-    command: python manage.py runserver 0.0.0.0:8000
-    volumes:
-      - ./ms_users:/app
+    # Backend en Python (Django)
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgres://julian:securepass@db_users:5432/users_db
+    volumes:
+      - ./ms_users:/app
     depends_on:
       - db_users
+      - rabbitmq # Agregamos la dependencia
+    environment:
+      - DATABASE_URL=postgres://user:password@db_users:5432/users_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/ # URL para eventos
+      - WALLET_GRPC_URL=ms_wallet:50051 # URL para consultas síncronas
 
-  # Microservicio de Transacciones (ms_wallet)
   ms_wallet:
     build: ./ms_wallet
-    command: python manage.py runserver 0.0.0.0:8001
-    volumes:
-      - ./ms_wallet:/app
+    # Backend en Go (Golang)
     ports:
       - "8001:8001"
-    environment:
-      - DATABASE_URL=postgres://julian:securepass@db_wallet:5432/wallet_db
+      - "50051:50051" # Puerto reservado para el servidor gRPC
+    volumes:
+      - ./ms_wallet:/app
     depends_on:
       - db_wallet
+      - rabbitmq
+    environment:
+      - DATABASE_URL=postgres://user:password@db_wallet:5432/wallet_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
 
-  # Microservicio de Notificaciones (ms_notifications)
   ms_notifications:
     build: ./ms_notifications
-    command: python worker.py
+    # Backend en Node.js (NestJS)
+    ports:
+      - "8002:8002"
     volumes:
       - ./ms_notifications:/app
     depends_on:
+      - db_notifications
       - rabbitmq
-
-  ms_wallet_consumer:
-    build: ./ms_wallet
-    command: python consumer.py
-    volumes:
-      - ./ms_wallet:/app
-    depends_on:
-      - db_wallet
-      - rabbitmq
-
-  # ms_notifications_consumer:
-  #   build: ./ms_notifications
-  #   command: python consumer.py
-  #   volumes:
-  #     - ./ms_notifications:/app
-  #   depends_on:
-  #     - rabbitmq
-
-# Volúmenes persistentes para no perder datos al apagar los contenedores
-volumes:
-  postgres_data_users:
-  postgres_data_wallet:
+    environment:
+      - DATABASE_URL=postgres://user:password@db_notifications:5432/notifications_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
