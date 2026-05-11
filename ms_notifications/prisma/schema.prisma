@@ -12,13 +12,19 @@ datasource db {
   provider = "postgresql"
 }
 
+enum NotificationType {
+  TRANSFER_RECEIVED
+  TRANSFER_SENT
+}
+
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    String   // Guardamos el UUID como String
+  id        Int              @id @default(autoincrement())
+  userId    String
   message   String
-  type      String   // Ej: 'TRANSFER_RECEIVED', 'SECURITY_ALERT'
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updateAt  DateTime         @updatedAt
 
   @@map("notifications")
 }
