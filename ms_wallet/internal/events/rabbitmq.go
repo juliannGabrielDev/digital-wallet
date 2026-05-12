@@ -32,7 +32,6 @@ func (c *RabbitMQConsumer) Close() {
 	c.conn.Close()
 }
 
-// StartListening inicia la suscripción a la cola de RabbitMQ
 func (c *RabbitMQConsumer) StartListening() error {
 	ch, err := c.conn.Channel()
 	if err != nil {

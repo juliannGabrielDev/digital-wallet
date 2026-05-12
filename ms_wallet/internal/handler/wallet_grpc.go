@@ -40,6 +40,33 @@ func (s *WalletGRPCServer) GetWallet(ctx context.Context, req *pb.WalletRequest)
 }
 
 func (s *WalletGRPCServer) ValidateFunds(ctx context.Context, req *pb.FundsRequest) (*pb.FundsResponse, error) {
-	// TODO: Lógica real de validación
+	userUUID, err := uuid.Parse(req.UserId)
+	if err != nil {
+		return &pb.FundsResponse{IsValid: false, Message: "ID de usuario inválido"}, nil
+	}
+	if req.Amount < 0 {
+		return &pb.FundsResponse{IsValid: false, Message: "El monto no puede ser negativo"}, nil
+	}
+
+	userID := pgtype.UUID{Bytes: userUUID, Valid: true}
+	wallet, err := s.repo.GetWallet(ctx, userID)
+	if err != nil {
+		return &pb.FundsResponse{IsValid: false, Message: "Billetera no encontrada para el usuario"}, nil
+	}
+
+	if !wallet.IsActive {
+		return &pb.FundsResponse{IsValid: false, Message: "La billetera del usuario está inactiva"}, nil
+	}
+
+	walletBalance := 0.0
+	if wallet.Balance.Int != nil {
+		walletBalance, _ = new(big.Float).SetInt(wallet.Balance.Int).Float64()
+		walletBalance *= math.Pow10(int(wallet.Balance.Exp))
+	}
+
+	if walletBalance < req.Amount {
+		return &pb.FundsResponse{IsValid: false, Message: "Fondos insuficientes"}, nil
+	}
+
 	return &pb.FundsResponse{IsValid: true, Message: "Fondos suficientes confirmados"}, nil
 }
