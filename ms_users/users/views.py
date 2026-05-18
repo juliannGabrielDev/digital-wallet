@@ -41,14 +41,26 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-class MyContactListView(generics.ListAPIView):
+class MyContactListView(generics.ListCreateAPIView):
     """
-    Lista la libreta de contactos del usuario autenticado.
+    Lista y crea contactos para la libreta de contactos del usuario autenticado.
     """
     serializer_class = ContactSerializer
 
     def get_queryset(self):
         return Contact.objects.filter(owner=self.request.user).select_related('contact_user')
+
+    def perform_create(self, serializer):
+        # El dueño del contacto siempre es el usuario actual
+        # Obtenemos el contact_user_id del serializer y resolvemos la instancia
+        contact_user_id = serializer.validated_data.get('contact_user_id')
+        try:
+            contact_user_instance = User.objects.get(id=contact_user_id)
+        except User.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"contact_user_id": "El usuario destino no existe."})
+            
+        serializer.save(owner=self.request.user, contact_user=contact_user_instance)
 
 
 class UserContactListView(generics.ListAPIView):

@@ -11,6 +11,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createTransaction = `-- name: CreateTransaction :one
+INSERT INTO transactions (from_wallet_id, to_wallet_id, amount, status, currency, description)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, from_wallet_id, to_wallet_id, amount, status, created_at, currency, description
+`
+
+type CreateTransactionParams struct {
+	FromWalletID pgtype.UUID    `json:"from_wallet_id"`
+	ToWalletID   pgtype.UUID    `json:"to_wallet_id"`
+	Amount       pgtype.Numeric `json:"amount"`
+	Status       string         `json:"status"`
+	Currency     string         `json:"currency"`
+	Description  string         `json:"description"`
+}
+
+func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
+	row := q.db.QueryRow(ctx, createTransaction,
+		arg.FromWalletID,
+		arg.ToWalletID,
+		arg.Amount,
+		arg.Status,
+		arg.Currency,
+		arg.Description,
+	)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.FromWalletID,
+		&i.ToWalletID,
+		&i.Amount,
+		&i.Status,
+		&i.CreatedAt,
+		&i.Currency,
+		&i.Description,
+	)
+	return i, err
+}
+
 const createWallet = `-- name: CreateWallet :one
 INSERT INTO wallets (id, user_id, balance, currency)
 VALUES ($1, $2, $3, $4)
@@ -44,12 +82,130 @@ func (q *Queries) CreateWallet(ctx context.Context, arg CreateWalletParams) (Wal
 	return i, err
 }
 
+const getTransactionsByWallet = `-- name: GetTransactionsByWallet :many
+SELECT id, from_wallet_id, to_wallet_id, amount, status, created_at, currency, description FROM transactions
+WHERE from_wallet_id = $1 OR to_wallet_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetTransactionsByWalletParams struct {
+	FromWalletID pgtype.UUID `json:"from_wallet_id"`
+	Limit        int32       `json:"limit"`
+	Offset       int32       `json:"offset"`
+}
+
+func (q *Queries) GetTransactionsByWallet(ctx context.Context, arg GetTransactionsByWalletParams) ([]Transaction, error) {
+	rows, err := q.db.Query(ctx, getTransactionsByWallet, arg.FromWalletID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Transaction
+	for rows.Next() {
+		var i Transaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.FromWalletID,
+			&i.ToWalletID,
+			&i.Amount,
+			&i.Status,
+			&i.CreatedAt,
+			&i.Currency,
+			&i.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWallet = `-- name: GetWallet :one
 SELECT id, user_id, balance, created_at, currency, is_active, updated_at FROM wallets WHERE user_id = $1 LIMIT 1
 `
 
 func (q *Queries) GetWallet(ctx context.Context, userID pgtype.UUID) (Wallet, error) {
 	row := q.db.QueryRow(ctx, getWallet, userID)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Balance,
+		&i.CreatedAt,
+		&i.Currency,
+		&i.IsActive,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWalletForUpdate = `-- name: GetWalletForUpdate :one
+SELECT id, user_id, balance, created_at, currency, is_active, updated_at FROM wallets 
+WHERE id = $1 AND is_active = TRUE 
+LIMIT 1 
+FOR UPDATE
+`
+
+func (q *Queries) GetWalletForUpdate(ctx context.Context, id pgtype.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, getWalletForUpdate, id)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Balance,
+		&i.CreatedAt,
+		&i.Currency,
+		&i.IsActive,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateWalletActiveStatus = `-- name: UpdateWalletActiveStatus :one
+UPDATE wallets
+SET is_active = $2, updated_at = NOW()
+WHERE user_id = $1
+RETURNING id, user_id, balance, created_at, currency, is_active, updated_at
+`
+
+type UpdateWalletActiveStatusParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	IsActive bool        `json:"is_active"`
+}
+
+func (q *Queries) UpdateWalletActiveStatus(ctx context.Context, arg UpdateWalletActiveStatusParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, updateWalletActiveStatus, arg.UserID, arg.IsActive)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Balance,
+		&i.CreatedAt,
+		&i.Currency,
+		&i.IsActive,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateWalletBalance = `-- name: UpdateWalletBalance :one
+UPDATE wallets 
+SET balance = balance + $1, updated_at = NOW()
+WHERE id = $2
+RETURNING id, user_id, balance, created_at, currency, is_active, updated_at
+`
+
+type UpdateWalletBalanceParams struct {
+	Amount pgtype.Numeric `json:"amount"`
+	ID     pgtype.UUID    `json:"id"`
+}
+
+func (q *Queries) UpdateWalletBalance(ctx context.Context, arg UpdateWalletBalanceParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, updateWalletBalance, arg.Amount, arg.ID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,

@@ -12,8 +12,11 @@ WORKDIR /app
 # Se incluyen herramientas para compilar extensiones de C y soporte para PostgreSQL
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
     python3-dev \
     libpq-dev \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalación de pipenv (tu gestor de paquetes preferido)

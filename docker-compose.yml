@@ -87,3 +87,29 @@ services:
     environment:
       - DATABASE_URL=postgres://user:password@db_notifications:5432/notifications_db
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+
+  # ==========================================
+  # INTERFAZ MÓVIL / WEB (Expo & React Native)
+  # ==========================================
+  app:
+    build: ./app
+    # Puerto del Metro Bundler de Expo (Sirve web, iOS y Android en Expo 51+)
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./app:/app
+      - /app/node_modules
+      - /app/.expo
+    stdin_open: true  # Permite interactuar con la terminal (ej: presionar 'w' para web, 'r' para recargar)
+    tty: true         # Asigna una pseudo-terminal (TTY)
+    depends_on:
+      - ms_users
+      - ms_wallet
+      - ms_notifications
+    environment:
+      - NODE_ENV=development
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      # REACT_NATIVE_PACKAGER_HOSTNAME permite que Expo Go en tu teléfono encuentre el Bundler.
+      # Puedes definir la variable EXPO_PACKAGER_IP en un archivo .env con el IP local de tu PC (ej: 192.168.1.100).
+      # Si se deja vacío, por defecto usará 127.0.0.1 (perfecto para desarrollo local y Expo Web).
+      - REACT_NATIVE_PACKAGER_HOSTNAME=${EXPO_PACKAGER_IP:-127.0.0.1}

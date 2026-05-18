@@ -51,10 +51,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class ContactSerializer(serializers.ModelSerializer):
     """
-    Serializer para listar los contactos guardados por un usuario.
+    Serializer para listar y crear los contactos guardados por un usuario.
     """
     contact_user = CustomUserSerializer(read_only=True)
+    contact_user_id = serializers.UUIDField(write_only=True)
 
     class Meta:
         model = Contact
-        fields = ('id', 'alias', 'created_at', 'contact_user')
+        fields = ('id', 'alias', 'created_at', 'contact_user', 'contact_user_id')

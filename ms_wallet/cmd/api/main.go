@@ -19,6 +19,7 @@ import (
 	"ms_wallet/internal/grpc/pb"
 	"ms_wallet/internal/handler"
 	"ms_wallet/internal/repository"
+	"ms_wallet/internal/service"
 )
 
 func main() {
@@ -111,8 +112,29 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
+	// Instanciar RabbitMQ Producer para WalletService
+	rabbitProducer, err := events.NewRabbitMQProducer(rabbitURL)
+	if err != nil {
+		log.Printf("Aviso: No se pudo conectar el RabbitMQ Producer: %v", err)
+	} else {
+		defer rabbitProducer.Close()
+	}
+
+	// Instanciar WalletService y el HTTP Handler
+	walletService := service.NewWalletService(dbPool, queries, rabbitProducer)
+	httpHandler := handler.NewWalletHTTPHandler(walletService)
+
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ms_wallet HTTP ok"))
+	})
+
+	// Rutas alineadas perfectamente con el Frontend en Expo
+	router.Route("/api/v1/wallet", func(r chi.Router) {
+		r.Get("/", httpHandler.GetWallet)
+		r.Post("/transfer/", httpHandler.TransferMoney)
+		r.Post("/deactivate/", httpHandler.DeactivateCard)
+		r.Post("/activate/", httpHandler.ActivateCard)
+		r.Get("/transactions/", httpHandler.GetTransactions)
 	})
 
 	port := os.Getenv("PORT")
